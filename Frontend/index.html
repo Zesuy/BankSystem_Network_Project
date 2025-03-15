@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>ATM Client</title>
+  <style>
+    .screen { display: none; }
+    .active { display: block; }
+  </style>
+</head>
+<body>
+  <!-- 卡号输入界面 -->
+  <div id="loginScreen" class="screen active">
+    <div id="serverInfo">
+      <p>当前服务器: <span id="currentHost"></span></p>
+      <p>连接状态: <span id="connectionStatus"></span></p>
+    </div>
+    <input type="text" id="cardNumber" placeholder="Card Number">
+    <button id="loginBtn">Insert Card</button>
+    <button id="configBtn">Configuration</button>
+    <button id="testConnectionBtn">测试连接</button>
+    <div id="message"></div>
+  </div>
+
+  <!-- 密码输入界面 -->
+  <div id="pinScreen" class="screen">
+    <input type="password" id="pin" placeholder="PIN">
+    <button id="submitPin">Submit</button>
+    <div id="message"></div>
+  </div>
+
+  <!-- 主操作界面 -->
+  <div id="mainScreen" class="screen">
+    <button id="balanceBtn">Check Balance</button>
+    <input type="number" id="amount" placeholder="Amount">
+    <button id="withdrawBtn">Withdraw</button>
+    <button id="exitBtn">Exit</button>
+    <div id="message"></div>
+  </div>
+  <!-- 配置界面 -->
+  <div id="configScreen" class="screen">
+    <input type="text" id="serverAddress" placeholder="Server Address">
+    <input type="number" id="serverPort" placeholder="Server Port">
+    <button id="saveConfig">Save</button>
+    <button id="backBtn">Back</button>
+    <div id="configMessage"></div>
+  </div>
+  <script src="renderer.js"></script>
+</body>
+</html>

@@ -1,0 +1,32 @@
+{
+    "name": "atm-electron-client",
+    "version": "1.0.0",
+    "description": "RFC-20232023 ATM Client",
+    "main": "main.js",
+    "scripts": {
+      "start": "electron .",
+      "test": "mocha test/*.test.js",
+      "pack": "electron-builder --dir",
+      "dist": "electron-builder"
+    },
+    "dependencies": {
+      "electron": "^28.1.0"
+    },
+    "devDependencies": {
+      "electron-builder": "^24.9.1",
+      "mocha": "^10.2.0",
+      "chai": "^4.3.8"
+    },
+    "build": {
+      "appId": "com.example.atmclient",
+      "productName": "ATM Client",
+      "directories": {
+        "output": "dist"
+      },
+      "win": {
+        "target": "nsis",
+        "icon": "icon.ico"
+      }
+    }
+  }
+  
