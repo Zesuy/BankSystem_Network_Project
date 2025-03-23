@@ -83,6 +83,11 @@ class ClientHandler implements Runnable {
     private synchronized String handleWithdrawal(String amountStr) {
         try {
             int amount = Integer.parseInt(amountStr);
+            // 检查取款金额是否为负数
+            if (amount < 0) {
+                logTransaction(currentAccount.cardNo, "WDRA", "FAIL", amount);
+                return "401 ERROR";
+            }
             if (currentAccount != null && currentAccount.withdraw(amount)) {
                 saveAccounts();
                 logTransaction(currentAccount.cardNo, "WDRA", "SUCCESS", amount);

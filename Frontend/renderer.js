@@ -1,155 +1,145 @@
 // renderer.js - 界面逻辑
-document.addEventListener('DOMContentLoaded', () => {
-    const screens = document.querySelectorAll('.screen')
-    let currentScreen = 'loginScreen'
+const net = require('net')
+let socket = null
+let currentState = 'INIT'
+
+// 状态管理
+const states = {
+    INIT: 'INIT',
+    NEED_PASSWORD: 'NEED_PASSWORD',
+    AUTHED: 'AUTHED'
+}
+function showError(message) {
+    const toast = document.getElementById('error-toast')
+    toast.innerText = message
+    toast.style.display = 'block'
+    setTimeout(() => {
+        toast.style.display = 'none'
+    }, 3000)
+}
+
+// 连接服务器
+document.getElementById('connect-btn').addEventListener('click', () => {
+    console.log("connecting")
+    const ip = document.getElementById('server-ip').value
+    const port = document.getElementById('server-port').value
   
-    // 界面切换函数
-    function showScreen(screenId) {
-      screens.forEach(screen => {
-        screen.classList.remove('active')
-        if (screen.id === screenId) screen.classList.add('active')
-      })
-      currentScreen = screenId
-    }
-  
-    // 服务器响应处理
-    window.api.onServerResponse((_, response) => {
-      const messageDiv = document.getElementById('message')
-      messageDiv.textContent = response
-  
-      if (response.startsWith('500')) {
-        showScreen('pinScreen')
-      } else if (response.startsWith('AMNT')) {
-        messageDiv.textContent = `Balance: ${response.split(':')[1]} cents`
-      } else if (response === 'BYE') {
-        showScreen('loginScreen')
-      }
-    })
-  
-    // 事件绑定
-    document.getElementById('loginBtn').addEventListener('click', async () => {
-      const cardNumber = document.getElementById('cardNumber').value
-      await window.api.sendCommand('HELO', cardNumber)
-    })
-  
-    document.getElementById('submitPin').addEventListener('click', async () => {
-      const pin = document.getElementById('pin').value
-      const result = await window.api.sendCommand('PASS', pin)
-      if (result.status === 'success') showScreen('mainScreen')
-    })
-  
-    document.getElementById('balanceBtn').addEventListener('click', async () => {
-      await window.api.sendCommand('BALA')
-    })
-  
-    document.getElementById('withdrawBtn').addEventListener('click', async () => {
-      const amount = document.getElementById('amount').value
-      await window.api.sendCommand('WDRA', amount)
-    })
-  
-    document.getElementById('exitBtn').addEventListener('click', async () => {
-      await window.api.sendCommand('BYE')
-    })
-
-    // 添加日志记录函数
-    function logToFile(action, status, message = '') {
-      const logEntry = `
-        <log>
-          <timestamp>${new Date().toISOString()}</timestamp>
-          <action>${action}</action>
-          <status>${status}</status>
-          <message>${message}</message>
-        </log>
-      `;
-      
-      // 通过IPC发送日志到主进程
-      window.api.logAction({action, status, message});
-    }
-
-    // 添加配置按钮事件
-    document.getElementById('configBtn').addEventListener('click', () => {
-      showScreen('configScreen');
-    });
-
-    // 添加保存配置事件
-    document.getElementById('saveConfig').addEventListener('click', async () => {
-      const address = document.getElementById('serverAddress').value;
-      const port = document.getElementById('serverPort').value;
-      
-      try {
-        await window.api.updateServerConfig({address, port});
-        logToFile('UPDATE_CONFIG', 'SUCCESS', `Server: ${address}:${port}`);
-        document.getElementById('configMessage').textContent = 'Configuration saved successfully';
-      } catch (error) {
-        logToFile('UPDATE_CONFIG', 'FAILED', error.message);
-        document.getElementById('configMessage').textContent = `Error: ${error.message}`;
-      }
-    });
-
-    // 添加返回按钮事件
-    document.getElementById('backBtn').addEventListener('click', () => {
-      showScreen('loginScreen');
-    });
-
-
-    // 添加连接状态显示
-    window.api.onConnectionError((_, error) => {
-      logToFile('CONNECTION', 'FAILED', error);
-      document.getElementById('message').textContent = `Connection Error: ${error}`;
-      document.getElementById('connectionStatus').textContent = '连接失败';
-      document.getElementById('connectionStatus').style.color = 'red';
-    });
-
-    // 添加成功连接处理
-    window.api.onServerResponse(() => {
-      document.getElementById('connectionStatus').textContent = '已连接';
-      document.getElementById('connectionStatus').style.color = 'green';
-    });
-
-    // 添加测试连接按钮事件
-    document.getElementById('testConnectionBtn').addEventListener('click', async () => {
-      try {
-        const testCard = '123456'; // 测试用卡号
-        const response = await window.api.sendCommand('HELO', testCard);
-        if (response.status === 'success') {
-          document.getElementById('message').textContent = '服务器连接正常';
-          logToFile('TEST_CONNECTION', 'SUCCESS', 'Server connection test passed');
-        } else {
-          document.getElementById('message').textContent = '服务器连接失败';
-          logToFile('TEST_CONNECTION', 'FAILED', 'Server connection test failed');
-        }
-      } catch (error) {
-        document.getElementById('message').textContent = `测试失败: ${error.message}`;
-        logToFile('TEST_CONNECTION', 'ERROR', error.message);
-        // 添加重连逻辑
-        setTimeout(() => {
-          document.getElementById('testConnectionBtn').click();
-        }, 3000); // 3秒后自动重试
-      }
-    });
-
-    window.api.updateServerConfig((_, config) => {
-      document.getElementById('currentHost').textContent = `${config.address}:${config.port}`;
-      // 添加日志记录
-      logToFile('UPDATE_HOST', 'SUCCESS', `Updated to ${config.address}:${config.port}`);
-    });
+    socket = new net.Socket()
     
-    // 修改保存配置事件
-    document.getElementById('saveConfig').addEventListener('click', async () => {
-      const address = document.getElementById('serverAddress').value;
-      const port = document.getElementById('serverPort').value;
-      
-      try {
-        const result = await window.api.updateServerConfig({address, port});
-        if (result.status === 'success') {
-          // 立即更新界面显示
-          document.getElementById('currentHost').textContent = `${address}:${port}`;
-          document.getElementById('configMessage').textContent = 'Configuration saved successfully';
-          logToFile('UPDATE_CONFIG', 'SUCCESS', `Server: ${address}:${port}`);
+    socket.connect(port, ip, () => {
+        console.log('TCP created')
+        showLoginScreen()
+    })
+    
+    
+    // 处理错误事件
+    socket.on('error', (err) => {
+        console.log('连接错误:', err)
+        showError('连接服务器失败：' + err.message)
+        socket.destroy()
+        currentState = states.TEST
+        document.getElementById('init-screen').style.display = 'block'
+        document.getElementById('login-screen').style.display = 'none'
+    })
+    
+    socket.on('data', (data) => {
+        handleServerResponse(data.toString())
+    })
+})
+
+function handleServerResponse(response) {
+    switch(currentState) {
+      case states.INIT:
+        if (response.startsWith('500')) {
+            console.log("account exists wait for passwords")
+          currentState = states.NEED_PASSWORD
+          document.getElementById('password-field').style.display = 'block'
         }
-      } catch (error) {
-        logToFile('UPDATE_CONFIG', 'FAILED', error.message);
-        document.getElementById('configMessage').textContent = `Error: ${error.message}`;
-      }
-    });
+        else{
+            showError("账户错误或用户不存在")
+            console.log("account doesnot exist")
+        }
+        break
+  
+      case states.NEED_PASSWORD:
+        if (response.startsWith('525')) {
+            console.log("login succeed")
+          currentState = states.AUTHED
+          showMainScreen()
+        } else if (response.startsWith('401')) {
+          showError('密码错误，请重试')
+          document.getElementById('password').value = ''
+        }
+        break
+  
+      case states.AUTHED:
+        if (response.startsWith('AMNT')) {
+          const amount = response.split(':')[1]
+          console.log('当前余额'+amount)
+          document.getElementById('result').style.display = 'block'
+          document.getElementById('result').innerText = `当前余额：${amount}`
+        } else if (response.startsWith('525')) {
+          document.getElementById('result').innerText = '操作成功'
+          console.log("action suceed")
+        } else if (response.startsWith('401')) {
+          document.getElementById('result').innerText = '操作失败'
+        } else if (response === 'BYE') {
+            console.log("user loggout")
+          currentState = states.INIT
+          document.getElementById('main-screen').style.display = 'none'
+          document.getElementById('init-screen').style.display = 'block'
+        }
+        break
+    }
+  }
+
+// 显示登录界面
+function showLoginScreen() {
+  document.getElementById('init-screen').style.display = 'none'
+  document.getElementById('login-screen').style.display = 'block'
+}
+
+// 显示主界面
+function showMainScreen() {
+  document.getElementById('login-screen').style.display = 'none'
+  document.getElementById('main-screen').style.display = 'block'
+}
+
+// 登录操作
+document.getElementById('login-btn').addEventListener('click', () => {
+  const userId = document.getElementById('user-id').value
+  const password = document.getElementById('password').value
+  
+  if (currentState === states.INIT) {
+    socket.write(`HELO ${userId}\r\n`)
+  } else if (currentState === states.NEED_PASSWORD) {
+    socket.write(`PASS ${password}\r\n`)
+  }
+})
+
+// 余额查询
+document.getElementById('balance-btn').addEventListener('click', () => {
+    console.log("bala")
+  socket.write('BALA\r\n')
+})
+
+// 取款操作
+document.getElementById('withdraw-btn').addEventListener('click', () => {
+    const amount = document.getElementById('withdraw-amount').value
+    if (amount) {
+      socket.write(`WDRA ${amount}\r\n`)
+      document.getElementById('withdraw-amount').value = '' // 清空输入框
+    } else {
+      showError('请输入有效金额')
+    }
   })
+
+// 退出登录
+document.getElementById('logout-btn').addEventListener('click', () => {
+  socket.write('BYE\r\n')
+  currentState = states.INIT
+  document.getElementById('main-screen').style.display = 'none'
+  document.getElementById('init-screen').style.display = 'block'
+
+
+})
