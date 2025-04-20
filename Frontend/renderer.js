@@ -3,6 +3,9 @@ const net = require('net')
 let socket = null
 let currentState = 'INIT'
 
+const fs = require('fs')
+const logFilePath = 'log.txt'
+
 // 状态管理
 const states = {
     INIT: 'INIT',
@@ -18,23 +21,35 @@ function showError(message) {
     }, 3000)
 }
 
+function logMessage(message) {
+  const timestamp = new Date().toISOString()
+  fs.appendFile(logFilePath, `${timestamp} - ${message}\n`, (err) => {
+    if (err) {
+      console.error('日志记录失败:', err)
+    }
+  })
+}
+
 // 连接服务器
 document.getElementById('connect-btn').addEventListener('click', () => {
     console.log("connecting")
+    logMessage("Attempting to connect...")
     const ip = document.getElementById('server-ip').value
     const port = document.getElementById('server-port').value
   
     socket = new net.Socket()
     
     socket.connect(port, ip, () => {
-        console.log('TCP created')
-        showLoginScreen()
-    })
+      console.log('TCP created')
+      logMessage("TCP connection created")
+      showLoginScreen()
+  })
     
     
     // 处理错误事件
     socket.on('error', (err) => {
         console.log('连接错误:', err)
+        logMessage(`Connection error: ${err.message}`)
         showError('连接服务器失败：' + err.message)
         socket.destroy()
         currentState = states.TEST
@@ -50,6 +65,7 @@ document.getElementById('connect-btn').addEventListener('click', () => {
 function handleServerResponse(response) {
     switch(currentState) {
       case states.INIT:
+        logMessage(`Received response in INIT state: ${response}`)
         if (response.startsWith('500')) {
             console.log("account exists wait for passwords")
           currentState = states.NEED_PASSWORD
@@ -62,6 +78,7 @@ function handleServerResponse(response) {
         break
   
       case states.NEED_PASSWORD:
+        logMessage(`Received response in NEED_PASSWORD state: ${response}`)
         if (response.startsWith('525')) {
             console.log("login succeed")
           currentState = states.AUTHED
@@ -73,6 +90,7 @@ function handleServerResponse(response) {
         break
   
       case states.AUTHED:
+        logMessage(`Received response in AUTHED state: ${response}`)
         if (response.startsWith('AMNT')) {
           const amount = response.split(':')[1]
           console.log('当前余额'+amount)

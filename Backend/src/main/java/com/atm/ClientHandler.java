@@ -40,21 +40,34 @@ class ClientHandler implements Runnable {
 
     private String processCommand(String command) {
         String[] parts = command.split(" ");
+        String response = "401 ERROR"; // 默认错误响应
+        
         try {
             switch (parts[0]) {
                 case "HELO":
-                    return handleHelo(parts[1]);
+                    response = handleHelo(parts[1]);
+                    logCommandResponse(parts[1], "HELO", response);
+                    break;
                 case "PASS":
-                    return handlePass(parts[1]);
+                    response = handlePass(parts[1]);
+                    logCommandResponse(currentAccount != null ? currentAccount.cardNo : "UNKNOWN", "PASS", response);
+                    break;
                 case "BALA":
-                    return handleBalance();
+                    response = handleBalance();
+                    logCommandResponse(currentAccount != null ? currentAccount.cardNo : "UNKNOWN", "BALA", response);
+                    break;
                 case "WDRA":
-                    return handleWithdrawal(parts[1]);
+                    response = handleWithdrawal(parts[1]);
+                    logCommandResponse(currentAccount != null ? currentAccount.cardNo : "UNKNOWN", "WDRA", response);
+                    break;
                 case "BYE":
-                    return "BYE";
+                    response = "BYE";
+                    logCommandResponse(currentAccount != null ? currentAccount.cardNo : "UNKNOWN", "BYE", response);
+                    break;
                 default:
-                    return "401 ERROR";
+                    logCommandResponse(currentAccount != null ? currentAccount.cardNo : "UNKNOWN", parts[0], response);
             }
+            return response;
         } catch (Exception e) {
             logError("Command processing error: " + command);
             return "401 ERROR";
@@ -63,7 +76,7 @@ class ClientHandler implements Runnable {
 
     private String handleHelo(String cardNo) {
         currentAccount = accounts.get(cardNo);
-        return (currentAccount != null) ? "500 AUTH REQUIRED" : "401 ERROR";
+        return (currentAccount != null) ? "500 AUTH REQUIRE" : "401 ERROR";
     }
 
     private String handlePass(String password) {
@@ -118,57 +131,88 @@ class ClientHandler implements Runnable {
         }
     }
 
-   private void logTransaction(String cardNo, String action, String status, int... amount) {
-        String log = String.format("%s | %s | %s | %s | %d",
-            new Date(), cardNo, action, status, 
-            (amount.length > 0) ? amount[0] : 0);
-        
-        // INFO级别日志
-        logInfo("[TRANSACTION] " + log);
-        
-        try (PrintWriter pw = new PrintWriter(
-                new FileWriter(TRANSACTION_LOG, true))) {
-            pw.println(log);
-        } catch (IOException e) {
-            logError("Failed to write transaction log: " + log);
-        }
+private void logTransaction(String cardNo, String action, String status, int... amount) {
+    // 获取客户端的IP地址
+    String clientIP = clientSocket.getInetAddress().getHostAddress();
+    String log = String.format("%s | %s | %s | %s | %s | %d",
+        new Date(), clientIP, cardNo, action, status, 
+        (amount.length > 0) ? amount[0] : 0);
+    
+    // INFO级别日志
+    logInfo("[TRANSACTION] " + log);
+    
+    try (PrintWriter pw = new PrintWriter(
+            new FileWriter(TRANSACTION_LOG, true))) {
+        pw.println(log);
+    } catch (IOException e) {
+        logError("Failed to write transaction log: " + log);
     }
+}
 
-    private void logError(String message) {
-        String log = new Date() + " | " + message;
-        logDebug("[ERROR] " + log);
-        
-        try (PrintWriter pw = new PrintWriter(
-                new FileWriter("errors.log", true))) {
-            pw.println(log);
-        } catch (IOException e) {
-            System.err.println("Failed to write error log: " + message);
-        }
+private void logError(String message) {
+    // 获取客户端的IP地址
+    String clientIP = clientSocket.getInetAddress().getHostAddress();
+    String log = new Date() + " | " + clientIP + " | " + message;
+    logDebug("[ERROR] " + log);
+    
+    try (PrintWriter pw = new PrintWriter(
+            new FileWriter("errors.log", true))) {
+        pw.println(log);
+    } catch (IOException e) {
+        System.err.println("Failed to write error log: " + message);
     }
+}
 
-    // 新增INFO级别日志方法
-    private void logInfo(String message) {
-        String log = new Date() + " | INFO | " + message;
-        System.out.println(log);
-        
-        try (PrintWriter pw = new PrintWriter(
-                new FileWriter(INFO_LOG, true))) {
-            pw.println(log);
-        } catch (IOException e) {
-            System.err.println("Failed to write info log: " + message);
-        }
+// 新增INFO级别日志方法
+private void logInfo(String message) {
+    // 获取客户端的IP地址
+    String clientIP = clientSocket.getInetAddress().getHostAddress();
+    String log = new Date() + " | " + clientIP + " | INFO | " + message;
+    System.out.println(log);
+    
+    try (PrintWriter pw = new PrintWriter(
+            new FileWriter(INFO_LOG, true))) {
+        pw.println(log);
+    } catch (IOException e) {
+        System.err.println("Failed to write info log: " + message);
     }
+}
 
-    // 新增DEBUG级别日志方法
-    private void logDebug(String message) {
-        String log = new Date() + " | DEBUG | " + message;
-        System.out.println(log);
-        
-        try (PrintWriter pw = new PrintWriter(
-                new FileWriter(DEBUG_LOG, true))) {
-            pw.println(log);
-        } catch (IOException e) {
-            System.err.println("Failed to write debug log: " + message);
-        }
+// 新增DEBUG级别日志方法
+private void logDebug(String message) {
+    // 获取客户端的IP地址
+    String clientIP = clientSocket.getInetAddress().getHostAddress();
+    String log = new Date() + " | " + clientIP + " | DEBUG | " + message;
+    System.out.println(log);
+    
+    try (PrintWriter pw = new PrintWriter(
+            new FileWriter(DEBUG_LOG, true))) {
+        pw.println(log);
+    } catch (IOException e) {
+        System.err.println("Failed to write debug log: " + message);
     }
+}
+
+// 新增命令响应日志方法
+private void logCommandResponse(String cardNo, String command, String response) {
+    String clientIP = clientSocket.getInetAddress().getHostAddress();
+    String log = String.format("%s | %s | %s | Command: %s | Response: %s",
+        new Date(),
+        clientIP,
+        cardNo,
+        command,
+        response
+    );
+    
+    // 记录到 INFO 日志
+    logInfo("[COMMAND] " + log);
+    
+    // 同时记录到 transactions.log
+    try (PrintWriter pw = new PrintWriter(
+            new FileWriter(TRANSACTION_LOG, true))) {
+        pw.println(log);
+    } catch (IOException e) {
+        logError("Failed to write transaction log: " + log);
+    }
+}
 }
